@@ -30,6 +30,7 @@ struct Transaction:Content {
     var SigningPubKey:String
     var TransactionType:String
     var TxnSignature:String
+    var InvoiceID:String
     var Memos:[MemoObject]
 }
 

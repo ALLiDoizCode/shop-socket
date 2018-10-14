@@ -8,8 +8,11 @@
 import Vapor
 
 class SocketController {
-
+    var invoiceID = "4AAC45B7A04109BFF780AD8D97F3D24D848206EE6BC476CCD7A5298953BC959C"
+    let apiClient = APIClient()
+    var client:Client
     init(client:Client) {
+        self.client = client
         let channel = Channel(command: "subscribe", accounts: ["rfFXHU7Syn1zN62ooeqWDm12QjuErMA2Tp"])
     
         let jsonEncorder = JSONEncoder()
@@ -23,23 +26,11 @@ class SocketController {
                 ws.send(data)
                
                 ws.onText({ (ws, text) in
+                    print(text)
                     let data = text.convertToData()
                     do {
-                        /*let dictonary = try JSONSerialization.jsonObject(with: data, options: []) as? [String:AnyObject] ?? [String:AnyObject]()
-                        print(dictonary)
-                        let transaction = dictonary["transaction"] as? [String:AnyObject] ?? [String:AnyObject]()
-                        print(transaction)
-                        let memos = transaction["Memos"] as? [[String:AnyObject]] ?? [[String:AnyObject]]()
-                        print(memos)
-                        for memo in memos {
-                            let memoData = memo["MemoData"] as? String
-                            print(memoData)
-                        }*/
                         let engineResult = try jsonDecoder.decode(EngineResult.self, from: data)
-                        print(engineResult.engine_result_message)
-                        let hexData = engineResult.transaction.Memos[1].Memo.MemoData.hexDecodedData()
-                        let memoString = String(data: hexData, encoding: .utf8)
-                        print(memoString ?? "")
+                        self.handlPayment(engineResult:engineResult)
                     }catch{
                         print(error)
                     }
@@ -48,6 +39,34 @@ class SocketController {
             })
             
         }catch {
+            
+        }
+    }
+    
+    func handlPayment(engineResult:EngineResult) {
+    
+        guard engineResult.engine_result == "tesSUCCESS" else{
+            return
+        }
+        
+        guard engineResult.transaction.InvoiceID == invoiceID else{
+            return
+        }
+        let hexData = engineResult.transaction.Memos[1].Memo.MemoData.hexDecodedData()
+        let memoString = String(data: hexData, encoding: .utf8)
+        print(memoString ?? "")
+        print(engineResult.transaction.InvoiceID)
+        print(engineResult.engine_result)
+    }
+    
+    func makeOrder(price:Float,productId:String,quantity:Int) {
+        let products = ProductInfo(price: price, productId: productId, quantity: quantity)
+        let orders = Orders(allowPreOrder: false, orderId: "", products: [products])
+        let resposne = Response(using: client.container)
+        
+        do{
+            let response = try apiClient.send(client: client, clientRoute: .orders(orders: orders), container: client.container, response: resposne)
+        }catch{
             
         }
     }
