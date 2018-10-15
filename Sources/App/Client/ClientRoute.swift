@@ -16,7 +16,7 @@ enum ClientRoute {
         switch self {
        
         case .orders(let orders):
-            httpReq = HTTPRequest(method: .POST, url: "https://zerp-shop.herokuapp.com/orders")
+            httpReq = HTTPRequest(method: .POST, url: "https://zerp-shop.herokuapp.com/products/orders")
             httpReq.contentType = .json
             let jsonDecoder = JSONEncoder()
             let data = try jsonDecoder.encode(orders)

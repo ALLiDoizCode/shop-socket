@@ -6,6 +6,7 @@
 //
 
 import Vapor
+import Crypto
 
 class SocketController {
     var invoiceID = "4AAC45B7A04109BFF780AD8D97F3D24D848206EE6BC476CCD7A5298953BC959C"
@@ -44,7 +45,8 @@ class SocketController {
     }
     
     func handlPayment(engineResult:EngineResult) {
-    
+        let jsonDecoder = JSONDecoder()
+        
         guard engineResult.engine_result == "tesSUCCESS" else{
             return
         }
@@ -52,20 +54,46 @@ class SocketController {
         guard engineResult.transaction.InvoiceID == invoiceID else{
             return
         }
-        let hexData = engineResult.transaction.Memos[1].Memo.MemoData.hexDecodedData()
+        
+        let memos = engineResult.transaction.Memos
+        
+        guard memos.count > 0 else {
+            return
+        }
+        
+        let memo = memos[0]
+        let hexData = memo.Memo.MemoData.hexDecodedData()
         let memoString = String(data: hexData, encoding: .utf8)
         print(memoString ?? "")
         print(engineResult.transaction.InvoiceID)
         print(engineResult.engine_result)
-    }
-    
-    func makeOrder(price:Float,productId:String,quantity:Int) {
-        let products = ProductInfo(price: price, productId: productId, quantity: quantity)
-        let orders = Orders(allowPreOrder: false, orderId: "", products: [products])
-        let resposne = Response(using: client.container)
+        let memoData = (memoString ?? "").convertToData()
         
         do{
+            let anchorMemo = try jsonDecoder.decode(AnchorMemo.self, from: memoData)
+            makeOrder(price:anchorMemo.value, productId: anchorMemo.metaData, quantity: 1,memo:memoString ?? "")
+        }catch {
+            
+        }
+        
+        
+    }
+    
+    func makeOrder(price:Float,productId:String,quantity:Int,memo:String) {
+        var priceRounded = price.rounded(toPlaces: 2)
+        print(priceRounded)
+        
+        do{
+            let digest = try SHA1.hash(memo)
+            print(digest.hexEncodedString())
+            let products = ProductInfo(price: priceRounded, productId: productId, quantity: quantity)
+            let orders = Orders(allowPreOrder: false, orderId: digest.hexEncodedString(), products: [products])
+            let resposne = Response(using: client.container)
+            
             let response = try apiClient.send(client: client, clientRoute: .orders(orders: orders), container: client.container, response: resposne)
+            response.map { object in
+                print(object)
+            }
         }catch{
             
         }
@@ -98,5 +126,13 @@ extension String {
         }
         
         return Data(bytes)
+    }
+}
+
+extension Float {
+    /// Rounds the double to decimal places value
+    func rounded(toPlaces places:Int) -> Float {
+        let divisor = pow(10.0, Float(places))
+        return (self * divisor).rounded() / divisor
     }
 }
